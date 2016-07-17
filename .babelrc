@@ -1,4 +1,4 @@
 {
   "presets": ["es2015", "stage-0"],
-  "plugins": ["add-module-exports", "transform-async-to-generator"]
+  "plugins": ["add-module-exports", "transform-async-to-generator", "transform-decorators-legacy"]
 }
