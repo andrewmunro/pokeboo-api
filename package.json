@@ -1,0 +1,30 @@
+{
+  "name": "sik-pokemans",
+  "version": "1.0.0",
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "license": "UNLICENSED",
+  "main": "./distribution/index.js",
+  "scripts": {
+    "start": "babel-watch src",
+    "build": "babel src --out-dir distribution --ignore src/lib",
+    "prepublish": "npm run build"
+  },
+  "dependencies": {
+    "request": "^2.73.0",
+    "request-promise": "^4.0.0"
+  },
+  "devDependencies": {
+    "babel-cli": "^6.10.1",
+    "babel-plugin-add-module-exports": "^0.2.1",
+    "babel-plugin-static-fs": "^1.1.0",
+    "babel-plugin-transform-async-to-generator": "^6.8.0",
+    "babel-polyfill": "^6.9.1",
+    "babel-preset-es2015": "^6.9.0",
+    "babel-preset-stage-0": "^6.5.0",
+    "babel-watch": "^2.0.2"
+  },
+  "optionalDependencies": {}
+}
