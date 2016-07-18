@@ -1,42 +1,94 @@
 'use strict';
 import 'babel-polyfill';
 
-import {requiresAuth} from './utils/Decorators';
-import authMethods from './methods/AuthMethods';
-import locationMethods from './methods/LocationMethods';
+import request from 'request';
 
-class PokeAPI {
-    async login(username, password) {
-        let { access_token, expires } = await authMethods.login();
+import ProtoBuf from 'protobufjs';
 
-        this.token = access_token;
-        this.expires = expires;
 
-        return this.token;
-    }
+import RPCRequest from './utils/RPCRequest';
+import LoginSystem from './login/LoginSystem';
 
-    @requiresAuth
-    async getLocation() {
-        let location = await locationMethods.getLocation();
-        return location;
-    }
+import { LOGIN, LOGIN_OAUTH } from './constants/urls';
 
-    @requiresAuth
-    async setLocation(locationQuery) {
-        let location = await locationMethods.setLocation(locationQuery);
-        return location;
-    }
+
+var builder = ProtoBuf.loadProtoFile('pokemon.proto');
+
+var pokemonProto = builder.build()
+var RequestEnvelop = pokemonProto.RequestEnvelop;
+var ResponseEnvelop = pokemonProto.ResponseEnvelop;
+
+class PokeAPI
+{
+	async login(username, password, type)
+	{
+		var result = null;
+
+		// Use consts
+		if(type == 'ptc') result = await LoginSystem.PokemonClub(username, password);
+		if(type == 'google') result =await LoginSystem.GoogleAccount(username, password);
+
+		this.token = result.access_token;
+		this.expires  = result.expires;
+
+		this.rpc = new RPCRequest(this.token);
+
+		// Should this be in login?
+		this.endpoint = await this.getEndpoint();
+	}
+
+	async getEndpoint()
+	{
+		var request = [
+			new RequestEnvelop.Requests(2),
+			new RequestEnvelop.Requests(126),
+			new RequestEnvelop.Requests(4),
+			new RequestEnvelop.Requests(129),
+			new RequestEnvelop.Requests(5)
+		];
+
+		var result = await this.rpc.post('https://pgorelease.nianticlabs.com/plfe/rpc', request);
+
+		return 'https://' + result.api_url + '/rpc';
+	}
+
+	async getProfile()
+	{
+		var request = new RequestEnvelop.Requests(2);
+
+		var result = await this.rpc.post(this.endpoint, request);
+
+		var profile = ResponseEnvelop.ProfilePayload.decode(result.payload[0]).profile;
+
+		return profile;
+	}
 }
 
-let demo = async () => {
-    try {
-        let api = new PokeAPI();
-        await api.login('username', 'password');
-        let location = await api.setLocation('Eiffel Tower');
-        console.log(location);
-    } catch(e) {
-        console.log(e);
-    }
-};
+class Playground
+{
+	constructor()
+	{
+		this.api = new PokeAPI();
 
-demo();
+		this.run();
+	}
+
+	async run()
+	{
+		await this.api.login('', '', 'google');
+
+		var profile = await this.api.getProfile();
+
+		var debug =  {
+			token: this.api.token != null,
+			endpoint: this.api.endpoint,
+			name: profile.username,
+			team: profile.team,
+			stardust: profile.currency[1].amount
+		}
+
+		console.log(debug);
+	}
+}
+
+new Playground();
