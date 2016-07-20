@@ -48,19 +48,19 @@ export default class LoginRequest {
 
             let google = new GoogleOAuth();
 
-            google.login(username, password, androidId, (err, { masterToken, androidId }) => {
+            google.login(username, password, androidId, (err, data) => {
                 if (err) {
                     return reject(err);
                 }
 
-                google.oauth(username, masterToken, androidId, oauthService, app, clientSig, (err, { auth:Auth, expiry:Expiry }) => {
+                google.oauth(username, data.masterToken, data.androidId, oauthService, app, clientSig, (err, data) => {
                     if (err) {
                         return reject(err);
                     }
 
                     resolve({
-                        access_token: auth,
-                        expires: expiry
+                        access_token: data.Auth,
+                        expires: data.Expiry
                     });
                 });
             });

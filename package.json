@@ -9,7 +9,7 @@
   "main": "./distribution/index.js",
   "scripts": {
     "start": "babel-watch src",
-    "build": "babel src --out-dir distribution --ignore src/lib",
+    "build": "babel src --out-dir distribution",
     "prepublish": "npm run build"
   },
   "dependencies": {

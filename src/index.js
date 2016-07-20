@@ -44,9 +44,9 @@ class PokeAPI {
 
         let type = PokeAPI.LoginWithPokemonClub ? 'ptc' : 'google';
 
-        let {api_url:url} = await new RPCRequest(this.token, type).post('https://pgorelease.nianticlabs.com/plfe/rpc', request);
+        let { apiUrl } = await new RPCRequest(token, type).post('https://pgorelease.nianticlabs.com/plfe/rpc', request);
 
-        return new PokeAPI(token, expires, type, `https://${url}/rpc`);
+        return new PokeAPI(token, expires, type, `https://${apiUrl}/rpc`);
     }
 
     @decode(ProtoBuf.Networking.Responses.GetPlayerResponse)
@@ -98,7 +98,14 @@ class Playground {
     async run() {
         console.log("Logging in...");
 
-        this.api = await PokeAPI.Login('', '', PokeAPI.LoginWithPokemonClub);
+        try {
+            this.api = await PokeAPI.Login();
+        } catch(e) {
+            console.log(e);
+            console.log(e.stack);
+        }
+
+        console.log("Logged in!");
 
         try {
             let profile = await this.api.getProfile();
