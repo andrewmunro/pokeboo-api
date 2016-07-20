@@ -42,8 +42,7 @@ class PokeAPI {
             new Request(5) //DOWNLOAD_SETTINGS
         ];
 
-        let type = PokeAPI.LoginWithPokemonClub ? 'ptc' : 'google';
-
+        let type = loginMethod === PokeAPI.LoginWithPokemonClub ? 'ptc' : 'google';
         let { apiUrl } = await new RPCRequest(token, type).post('https://pgorelease.nianticlabs.com/plfe/rpc', request);
 
         return new PokeAPI(token, expires, type, `https://${apiUrl}/rpc`);
