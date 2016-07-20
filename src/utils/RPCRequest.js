@@ -2,14 +2,15 @@ import request from 'request';
 import ProtoBuf from 'protobufjs';
 
 var builder = ProtoBuf.loadProtoFile('pokemon.proto');
+var pokemonProto = builder.build();
+var RequestEnvelope = pokemonProto.Networking.Envelopes.RequestEnvelope;
+var ResponseEnvelope = pokemonProto.Networking.Envelopes.ResponseEnvelope;
 
-var pokemonProto = builder.build()
-var RequestEnvelop = pokemonProto.RequestEnvelop;
-var ResponseEnvelop = pokemonProto.ResponseEnvelop;
+
 
 export default class RPCRequest
 {
-	constructor(accessToken)
+	constructor(accessToken, type)
 	{
 		this.accessToken = accessToken;
 
@@ -21,9 +22,9 @@ export default class RPCRequest
 			}
 		});
 
-		this.auth = new RequestEnvelop.AuthInfo({
-			'provider': 'google', //google / ptc
-			'token': new RequestEnvelop.AuthInfo.JWT(this.accessToken, 59)
+		this.auth = new RequestEnvelope.AuthInfo({
+			'provider': type,
+			'token': new RequestEnvelope.AuthInfo.JWT(this.accessToken, 59)
 		});
 	}
 
@@ -31,9 +32,10 @@ export default class RPCRequest
 	{
 		var promise = new Promise((resolve, reject) =>
 		{
-			var data = new RequestEnvelop({
-				'unknown1': 2,
-				'rpc_id': 1469378659230941192,
+
+			var data = new RequestEnvelope({
+				'status_code': 2,
+				'request_id': 1469378659230941192,
 
 				'requests': request,
 
@@ -42,7 +44,7 @@ export default class RPCRequest
 				'longitude': 0,
 				'altitude': 0,
 
-				'auth': this.auth,
+				'auth_info': this.auth,
 				'unknown12': 989
 			});
 
@@ -56,7 +58,7 @@ export default class RPCRequest
 					reject(error);
 				}
 
-				resolve(ResponseEnvelop.decode(body));
+				resolve(ResponseEnvelope.decode(body));
 			});
 		});
 

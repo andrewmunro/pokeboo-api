@@ -2,6 +2,7 @@ import GoogleOAuth from 'gpsoauthnode';
 import url from 'url';
 import querystring from 'querystring';
 
+import { LOGIN, LOGIN_OAUTH } from '../constants/urls';
 import PokeRequest from '../utils/PokeRequest';
 
 export default class LoginSystem
@@ -11,6 +12,7 @@ export default class LoginSystem
 		var request = new PokeRequest();
 
 		var { body } = await request.get(LOGIN);
+
 		var { lt, execution } = JSON.parse(body);
 
 		var loginData = {
