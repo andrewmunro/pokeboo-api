@@ -2,153 +2,132 @@
 import 'babel-polyfill';
 
 import request from 'request';
+import ProtoBuf from 'pokeboo-protobuf';
 
-import ProtoBuf from 'protobufjs';
+import RPCRequest from './request/RPCRequest';
+import LoginRequest from './request/LoginRequest';
 
+import {decode} from './utils/Decorators';
 
-import RPCRequest from './utils/RPCRequest';
-import LoginSystem from './login/LoginSystem';
-
-
-
-
-var builder = ProtoBuf.loadProtoFile('pokemon.proto');
-
-var pokemonProto = builder.build();
-var Request = pokemonProto.Networking.Requests.Request;
-var GetPlayerResponse = pokemonProto.Networking.Responses.GetPlayerResponse;
-var GetInventoryResponse = pokemonProto.Networking.Responses.GetInventoryResponse;
-var GetHatchedEggsResponse = pokemonProto.Networking.Responses.GetHatchedEggsResponse;
-var GetMapObjectsResponse = pokemonProto.Networking.Responses.GetMapObjectsResponse;
+//let GetPlayerResponse = pokemonProto.Networking.Responses.GetPlayerResponse;
+//let GetInventoryResponse = pokemonProto.Networking.Responses.GetInventoryResponse;
+//let GetHatchedEggsResponse = pokemonProto.Networking.Responses.GetHatchedEggsResponse;
+//let GetMapObjectsResponse = pokemonProto.Networking.Responses.GetMapObjectsResponse;
 
 
-var RequestType = pokemonProto.Networking.Requests.RequestType;
+let RequestType = ProtoBuf.Networking.Requests.RequestType;
+let Request = ProtoBuf.Networking.Requests.Request;
 
-class PokeAPI
-{
-	async login(username, password, type)
-	{
-		var result = null;
+class PokeAPI {
+    static LoginWithGoogle = LoginRequest.LoginWithGoogleAccount;
+    static LoginWithPokemonClub = LoginRequest.LoginWithPokemonClub;
 
-		// Use consts
-		if(type == 'ptc') result = await LoginSystem.PokemonClub(username, password);
-		if(type == 'google') result = await LoginSystem.GoogleAccount(username, password);
+    constructor(token, expires, type, endpoint) {
+        this.token = token;
+        this.expires = expires;
+        this.endpoint = endpoint;
+        this.type = type;
 
-		this.token = result.access_token;
-		this.expires  = result.expires;
+        this.rpc = new RPCRequest(this.token, type);
+    }
 
-		this.rpc = new RPCRequest(this.token, type);
+    static async Login(username, password, loginMethod = PokeAPI.LoginWithPokemonClub) {
+        let { access_token:token, expires } = await loginMethod.call(null, username, password);
 
-		this.endpoint = await this.getEndpoint();
-	}
+        let request = [
+            new Request(2),//GET_PLAYER
+            new Request(126), //GET_HATCHED_EGGS
+            new Request(4), //GET_INVENTORY
+            new Request(129), //CHECK_AWARDED_BADGES
+            new Request(5) //DOWNLOAD_SETTINGS
+        ];
 
-	async getEndpoint()
-	{
-		var request = [
-			new Request(2),//GET_PLAYER
-			new Request(126), //GET_HATCHED_EGGS
-			new Request(4), //GET_INVENTORY
-			new Request(129), //CHECK_AWARDED_BADGES
-			new Request(5) //DOWNLOAD_SETTINGS
-		];
+        let type = PokeAPI.LoginWithPokemonClub ? 'ptc' : 'google';
 
-		
-		var result = await this.rpc.post('https://pgorelease.nianticlabs.com/plfe/rpc', request);
+        let {api_url:url} = await new RPCRequest(this.token, type).post('https://pgorelease.nianticlabs.com/plfe/rpc', request);
 
-		return 'https://' + result.api_url + '/rpc';
-	}
+        return new PokeAPI(token, expires, type, `https://${url}/rpc`);
+    }
 
-	async getProfile()
-	{
-		var request = new Request(RequestType.GET_PLAYER);
+    @decode(ProtoBuf.Networking.Responses.GetPlayerResponse)
+    async getProfile() {
+        return await this.rpc.post(this.endpoint, new Request(RequestType.GET_PLAYER));
+    }
 
-		var result = await this.rpc.post(this.endpoint, request);
-		
-		var profile = GetPlayerResponse.decode(result.returns[0]);
+    async getHatchedEggs() {
+        let request = new Request(RequestType.GET_HATCHED_EGGS);
 
-		return profile.local_player;
-	}
+        let result = await this.rpc.post(this.endpoint, request);
 
-	async getHatchedEggs()
-	{
-		var request = new Request(RequestType.GET_HATCHED_EGGS);
+        let profile = GetHatchedEggsResponse.decode(result.returns[0]);
 
-		var result = await this.rpc.post(this.endpoint, request);
+        return profile;
+    }
 
-		var profile = GetHatchedEggsResponse.decode(result.returns[0]);
+    async getMapObjects() {
+        let request = new Request(RequestType.GET_MAP_OBJECTS);
 
-		return profile;
-	}
+        let result = await this.rpc.post(this.endpoint, request);
 
-	 async getMapObjects()
-	{
-		var request = new Request(RequestType.GET_MAP_OBJECTS);
+        let profile = GetMapObjectsResponse.decode(result.returns[0]);
 
-		var result = await this.rpc.post(this.endpoint, request);
+        return profile;
+    }
 
-		var profile = GetMapObjectsResponse.decode(result.returns[0]);
+    async getInventory() {
+        let request = new Request(RequestType.GET_INVENTORY);
 
-		return profile;
-	}
+        let result = await this.rpc.post(this.endpoint, request);
 
-	async getInventory()
-	{
-		var request = new Request(RequestType.GET_INVENTORY);
+        let inventory = GetInventoryResponse.decode(result.returns[0]);
 
-		var result = await this.rpc.post(this.endpoint, request);
-
-		var inventory = GetInventoryResponse.decode(result.returns[0]);
-
-		return inventory;
-	}
+        return inventory;
+    }
 }
 
-class Playground
-{
-	constructor()
-	{
-		this.api = new PokeAPI();
+class Playground {
+    constructor() {
+        try {
+            this.run();
+        }
+        catch (e) {
+            console.error(e);
+        }
+    }
 
-		try
-		{
-			this.run();
-		}
-		catch(e)
-		{
-			console.error(e);
-		}
-	}
+    async run() {
+        console.log("Logging in...");
 
-	async run()
-	{
-		console.log("LOggin in...");
+        this.api = await PokeAPI.Login('', '', PokeAPI.LoginWithPokemonClub);
 
-		// await this.api.login('', '', 'google');
-		// await this.api.login('', '', 'ptc');
+        try {
+            let profile = await this.api.getProfile();
+        } catch (e) {
+            console.log(e);
+            console.log(e.stack);
+        }
 
-		var profile = await this.api.getProfile();
+        let debug = {
+            token: this.api.token != null,
+            endpoint: this.api.endpoint,
+            name: profile.username,
+            team: profile.team,
+            stardust: profile.currencies[1].amount,
+            tutorial: profile.tutorialState
+        };
 
-		var debug =  {
-			token: this.api.token != null,
-			endpoint: this.api.endpoint,
-			name: profile.username,
-			team: profile.team,
-			stardust: profile.currencies[1].amount,
-			tutorial: profile.tutorial_state
-		}
-
-		console.log(debug);
-
-		var eggs = await this.api.getHatchedEggs()
-		console.log(eggs);
-
-		var map = await this.api.getMapObjects();
-		console.log(map);
-
-		var inventory = await this.api.getInventory();	
-
-		console.log(inventory);
-	}
+        console.log(debug);
+        //
+        //let eggs = await this.api.getHatchedEggs();
+        //console.log(eggs);
+        //
+        //let map = await this.api.getMapObjects();
+        //console.log(map);
+        //
+        //let inventory = await this.api.getInventory();
+        //
+        //console.log(inventory);
+    }
 }
 
 new Playground();

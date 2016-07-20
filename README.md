@@ -1,4 +1,4 @@
-# Pokeboo
+# pokeboo-api
 
 NPM module that exposes a simple API to communicate with the Pokemon Go servers.
 
