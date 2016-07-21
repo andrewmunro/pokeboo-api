@@ -7,13 +7,8 @@ import ProtoBuf from 'pokeboo-protobuf';
 import RPCRequest from './request/RPCRequest';
 import LoginRequest from './request/LoginRequest';
 
-import {decode} from './utils/Decorators';
-
-//let GetPlayerResponse = pokemonProto.Networking.Responses.GetPlayerResponse;
-//let GetInventoryResponse = pokemonProto.Networking.Responses.GetInventoryResponse;
-//let GetHatchedEggsResponse = pokemonProto.Networking.Responses.GetHatchedEggsResponse;
-//let GetMapObjectsResponse = pokemonProto.Networking.Responses.GetMapObjectsResponse;
-
+import logger from './logger/Logger';
+import {decode} from './decorators/Decorators';
 
 let RequestType = ProtoBuf.Networking.Requests.RequestType;
 let Request = ProtoBuf.Networking.Requests.Request;
@@ -28,7 +23,7 @@ class PokeAPI {
         this.endpoint = endpoint;
         this.type = type;
 
-        this.rpc = new RPCRequest(this.token, type);
+        this.rpc = new RPCRequest(this.token, type, this.getLocation.bind(this));
     }
 
     static async Login(username, password, loginMethod = PokeAPI.LoginWithPokemonClub) {
@@ -53,34 +48,35 @@ class PokeAPI {
         return await this.rpc.post(this.endpoint, new Request(RequestType.GET_PLAYER));
     }
 
+    @decode(ProtoBuf.Networking.Responses.GetHatchedEggsResponse)
     async getHatchedEggs() {
-        let request = new Request(RequestType.GET_HATCHED_EGGS);
-
-        let result = await this.rpc.post(this.endpoint, request);
-
-        let profile = GetHatchedEggsResponse.decode(result.returns[0]);
-
-        return profile;
+        return await this.rpc.post(this.endpoint, new Request(RequestType.GET_HATCHED_EGGS));
     }
 
+    @decode(ProtoBuf.Networking.Responses.GetMapObjectsResponse)
     async getMapObjects() {
-        let request = new Request(RequestType.GET_MAP_OBJECTS);
-
-        let result = await this.rpc.post(this.endpoint, request);
-
-        let profile = GetMapObjectsResponse.decode(result.returns[0]);
-
-        return profile;
+        return await this.rpc.post(this.endpoint, new Request(RequestType.GET_MAP_OBJECTS));
     }
 
+    @decode(ProtoBuf.Networking.Responses.GetInventoryResponse)
     async getInventory() {
-        let request = new Request(RequestType.GET_INVENTORY);
+        return await this.rpc.post(this.endpoint, new Request(RequestType.GET_INVENTORY));
+    }
 
-        let result = await this.rpc.post(this.endpoint, request);
+    async setLocation(lat = 0, long = 0, altitude = 0) {
+        this.location = { lat, long, altitude };
 
-        let inventory = GetInventoryResponse.decode(result.returns[0]);
+        await this.rpc.post(this.endpoint, new Request(RequestType.PLAYER_UPDATE));
 
-        return inventory;
+        return this.location;
+    }
+
+    getLocation() {
+        if(!this.location) {
+            this.location = { latitude: 0, longitude: 0, altitude: 0 };
+        }
+
+        return this.location;
     }
 }
 
@@ -90,49 +86,26 @@ class Playground {
             this.run();
         }
         catch (e) {
-            console.error(e);
+            logger.error(e, e.stack);
         }
     }
 
     async run() {
-        console.log("Logging in...");
-
         try {
+            logger.info("Logging in...");
             this.api = await PokeAPI.Login();
+            logger.info("Logged in!");
+
+            try {
+                let { playerData } = await this.api.getProfile();
+                logger.info('Profile: ', playerData);
+            } catch (e) {
+                logger.error(e);
+            }
+
         } catch(e) {
-            console.log(e);
-            console.log(e.stack);
+            logger.error(e);
         }
-
-        console.log("Logged in!");
-
-        try {
-            let profile = await this.api.getProfile();
-        } catch (e) {
-            console.log(e);
-            console.log(e.stack);
-        }
-
-        let debug = {
-            token: this.api.token != null,
-            endpoint: this.api.endpoint,
-            name: profile.username,
-            team: profile.team,
-            stardust: profile.currencies[1].amount,
-            tutorial: profile.tutorialState
-        };
-
-        console.log(debug);
-        //
-        //let eggs = await this.api.getHatchedEggs();
-        //console.log(eggs);
-        //
-        //let map = await this.api.getMapObjects();
-        //console.log(map);
-        //
-        //let inventory = await this.api.getInventory();
-        //
-        //console.log(inventory);
     }
 }
 

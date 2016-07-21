@@ -5,8 +5,9 @@ let RequestEnvelope = ProtoBuf.Networking.Envelopes.RequestEnvelope;
 let ResponseEnvelope = ProtoBuf.Networking.Envelopes.ResponseEnvelope;
 
 export default class RPCRequest {
-    constructor(accessToken, type) {
+    constructor(accessToken, type, getLocation) {
         this.accessToken = accessToken;
+        this.getLocation = getLocation || (() => ({latitude: 0, longitude: 0, altitude: 0}));
 
         this.request = request.defaults({
             jar: true,
@@ -24,17 +25,15 @@ export default class RPCRequest {
 
     post(url, requests) {
         return new Promise((resolve, reject) => {
+            let { latitude, longitude, altitude } = this.getLocation();
 
             let data = new RequestEnvelope({
                 statusCode: 2,
                 requestId: 1469378659230941192,
                 requests,
-
-                // Need pulling out?
-                latitude: 0,
-                longitude: 0,
-                altitude: 0,
-
+                latitude,
+                longitude,
+                altitude,
                 authInfo: this.auth,
                 unknown12: 989
             });

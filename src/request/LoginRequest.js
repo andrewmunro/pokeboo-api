@@ -23,6 +23,13 @@ export default class LoginRequest {
 
         let { response } = await request.post(LOGIN, {form: loginData});
 
+        if(!response.headers.location) {
+            let responseBody = JSON.parse(response.body);
+            let error = responseBody.errors ? responseBody.errors[0] : null;
+
+            throw new Error(`Login Failed: ${error || 'Unknown reason'}`);
+        }
+
         let location = url.parse(response.headers.location, true);
         let ticket = location.query.ticket;
 

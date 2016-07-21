@@ -1,9 +1,9 @@
 {
-  "name": "pokeboo",
+  "name": "pokeboo-api",
   "version": "1.0.0",
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "git@github.com:andrewmunro/pokeboo-api.git"
   },
   "license": "UNLICENSED",
   "main": "./distribution/index.js",
@@ -13,6 +13,8 @@
     "prepublish": "npm run build"
   },
   "dependencies": {
+    "bunyan": "^1.8.1",
+    "bunyan-debug-stream": "^1.0.7",
     "gpsoauthnode": "0.0.5",
     "pokeboo-protobuf": "^1.1.0",
     "request": "^2.73.0"
