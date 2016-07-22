@@ -9,6 +9,8 @@ export default class RPCRequest {
         this.accessToken = accessToken;
         this.getLocation = getLocation || (() => ({latitude: 0, longitude: 0, altitude: 0}));
 
+
+
         this.request = request.defaults({
             jar: true,
             encoding: null,
@@ -24,8 +26,10 @@ export default class RPCRequest {
     }
 
     post(url, requests) {
+
+        let { latitude, longitude, altitude } = this.getLocation();
+
         return new Promise((resolve, reject) => {
-            let { latitude, longitude, altitude } = this.getLocation();
 
             let data = new RequestEnvelope({
                 statusCode: 2,

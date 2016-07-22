@@ -2,7 +2,12 @@
 import 'babel-polyfill';
 
 import request from 'request';
+
+
 import ProtoBuf from 'pokeboo-protobuf';
+
+
+import InventoryParser from './parser/InventoryParser';
 
 import RPCRequest from './request/RPCRequest';
 import LoginRequest from './request/LoginRequest';
@@ -10,8 +15,22 @@ import LoginRequest from './request/LoginRequest';
 import logger from './logger/Logger';
 import {decode} from './decorators/Decorators';
 
+import NodeGeocoder from 'node-geocoder';
+
+import { LINQ } from 'node-linq';
+
+import ByteBuffer from 'bytebuffer';
+import s2 from 's2geometry-node';
+
+import ProtoBufUtils from './utils/ProtoBufUtils';
+
+let geocoder = NodeGeocoder({ provider: 'google' });
+
 let RequestType = ProtoBuf.Networking.Requests.RequestType;
 let Request = ProtoBuf.Networking.Requests.Request;
+
+let GetMapObjectsMessage = ProtoBuf.Networking.Requests.Messages.GetMapObjectsMessage;
+let FortDetailsMessage = ProtoBuf.Networking.Requests.Messages.FortDetailsMessage;
 
 class PokeAPI {
     static LoginWithGoogle = LoginRequest.LoginWithGoogleAccount;
@@ -22,6 +41,8 @@ class PokeAPI {
         this.expires = expires;
         this.endpoint = endpoint;
         this.type = type;
+
+        this.location = { latitude: 0, longitude: 0, altitude: 0 };
 
         this.rpc = new RPCRequest(this.token, type, this.getLocation.bind(this));
     }
@@ -55,7 +76,26 @@ class PokeAPI {
 
     @decode(ProtoBuf.Networking.Responses.GetMapObjectsResponse)
     async getMapObjects() {
-        return await this.rpc.post(this.endpoint, new Request(RequestType.GET_MAP_OBJECTS));
+
+        var nullbytes = new Buffer(21);
+        nullbytes.fill(0);
+
+        // Generating walk data using s2 geometry
+        var walk = this.getNeighbors(this.location.latitude, this.location.longitude).sort((a, b) => {
+            return a > b;
+        });
+
+        var buffer = new ByteBuffer(21 * 10).LE();
+        walk.forEach(function (elem) {
+            buffer.writeVarint64(elem);
+        });
+
+        // Creating MessageQuad for Requests type=106
+        buffer.flip();
+
+        var message = new GetMapObjectsMessage(buffer, nullbytes, this.location.latitude, this.location.longitude).encode();
+
+        return await this.rpc.post(this.endpoint, new Request(RequestType.GET_MAP_OBJECTS, message));
     }
 
     @decode(ProtoBuf.Networking.Responses.GetInventoryResponse)
@@ -63,20 +103,38 @@ class PokeAPI {
         return await this.rpc.post(this.endpoint, new Request(RequestType.GET_INVENTORY));
     }
 
-    async setLocation(lat = 0, long = 0, altitude = 0) {
-        this.location = { lat, long, altitude };
+    setLocation(latitude = 0, longitude = 0, altitude = 0) {
 
-        await this.rpc.post(this.endpoint, new Request(RequestType.PLAYER_UPDATE));
+        this.location.latitude = latitude;
+        this.location.longitude = longitude;
+        this.location.altitude = altitude;
 
         return this.location;
     }
 
     getLocation() {
-        if(!this.location) {
-            this.location = { latitude: 0, longitude: 0, altitude: 0 };
+        return this.location;
+    }
+
+    getNeighbors(lat, lng) {
+        
+        var origin = new s2.S2CellId(new s2.S2LatLng(lat, lng)).parent(15);
+
+        var walk = [origin.id()];
+        
+        // 10 before and 10 after
+        var next = origin.next();
+        var prev = origin.prev();
+        
+        for (var i = 0; i < 10; i++) {
+            // in range(10):
+            walk.push(prev.id());
+            walk.push(next.id());
+            next = next.next();
+            prev = prev.prev();
         }
 
-        return this.location;
+        return walk;
     }
 }
 
@@ -90,15 +148,71 @@ class Playground {
         }
     }
 
+    
+
     async run() {
         try {
             logger.info("Logging in...");
-            this.api = await PokeAPI.Login();
+            this.api = await PokeAPI.Login("", "", PokeAPI.LoginWithGoogle);
             logger.info("Logged in!");
 
             try {
+
+                var locations = await geocoder.geocode("Wellington Street, Leeds");
+
+                var location = locations[0];
+
+                this.api.setLocation(location.latitude, location.longitude, 0);
+
                 let { playerData } = await this.api.getProfile();
+
                 logger.info('Profile: ', playerData);
+
+                let inventory = InventoryParser.parse(await this.api.getInventory());
+
+                var pokemon = new LINQ(inventory.pokemon)
+                    .OrderBy((pokemon) => pokemon.stats.cp)
+                    .Reverse()
+                    .Select((pokemon) => "Name: " + pokemon.name + "\t  CP: " + pokemon.stats.cp)
+                    .ToArray()
+                    .slice(0, 6);
+
+                logger.info("Top 6 Pokemon");
+                pokemon.forEach((item) => logger.info(item));
+
+                logger.info("");
+                logger.info("Inventory");
+                logger.info(inventory.items);
+
+                let result = await this.api.getMapObjects();
+
+                for(var cell of result.mapCells)
+                {
+                    if(cell.nearbyPokemons)
+                    {
+                        for(var pokemon of cell.nearbyPokemons)
+                        {
+                            var pokemonName = ProtoBufUtils.pokemonName(pokemon.pokemonId);
+
+                            console.log("Name: " + pokemonName + " Distance: " + pokemon.distanceInMeters);
+                        }
+                    }
+
+                    if(cell.forts)
+                    {
+                        for(var fort of cell.forts)
+                        {
+                            if(fort.type == null)
+                            {
+                                var teamName = ProtoBufUtils.teamName(fort.ownedByTeam);
+                                var pokemonName = ProtoBufUtils.pokemonName(fort.guardPokemonId);
+
+                                console.log("Found Gym owned by " + teamName + " guarded by " + pokemonName);
+                            }
+                        }
+                    }
+                }
+
             } catch (e) {
                 logger.error(e);
             }
