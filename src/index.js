@@ -31,6 +31,7 @@ let Request = ProtoBuf.Networking.Requests.Request;
 
 let GetMapObjectsMessage = ProtoBuf.Networking.Requests.Messages.GetMapObjectsMessage;
 let FortDetailsMessage = ProtoBuf.Networking.Requests.Messages.FortDetailsMessage;
+let FortDetailsResponse = ProtoBuf.Networking.Responses.FortDetailsResponse;
 
 class PokeAPI {
     static LoginWithGoogle = LoginRequest.LoginWithGoogleAccount;
@@ -72,6 +73,14 @@ class PokeAPI {
     @decode(ProtoBuf.Networking.Responses.GetHatchedEggsResponse)
     async getHatchedEggs() {
         return await this.rpc.post(this.endpoint, new Request(RequestType.GET_HATCHED_EGGS));
+    }
+
+    // @decode dosn't work with args?!
+    async getFortDetails(id, long, lat) {
+        var details = new FortDetailsMessage(id, long, lat);
+        var result = await this.rpc.post(this.endpoint, new Request(RequestType.FORT_DETAILS, details.encode()));
+
+        return FortDetailsResponse.decode(result.returns[0]);
     }
 
     @decode(ProtoBuf.Networking.Responses.GetMapObjectsResponse)
@@ -117,15 +126,15 @@ class PokeAPI {
     }
 
     getNeighbors(lat, lng) {
-        
+
         var origin = new s2.S2CellId(new s2.S2LatLng(lat, lng)).parent(15);
 
         var walk = [origin.id()];
-        
+
         // 10 before and 10 after
         var next = origin.next();
         var prev = origin.prev();
-        
+
         for (var i = 0; i < 10; i++) {
             // in range(10):
             walk.push(prev.id());
@@ -148,7 +157,7 @@ class Playground {
         }
     }
 
-    
+
 
     async run() {
         try {
@@ -202,12 +211,18 @@ class Playground {
                     {
                         for(var fort of cell.forts)
                         {
+                            var details = await this.api.getFortDetails(fort.id, fort.longitude, fort.latitude);
+
                             if(fort.type == null)
                             {
                                 var teamName = ProtoBufUtils.teamName(fort.ownedByTeam);
                                 var pokemonName = ProtoBufUtils.pokemonName(fort.guardPokemonId);
 
-                                console.log("Found Gym owned by " + teamName + " guarded by " + pokemonName);
+                                console.log("Gym '" + details.name + "' owned by " + teamName + " guarded by " + pokemonName);
+                            }
+                            else
+                            {
+                                console.log("Pokestop '" + details.name + "' Lure " + (details.modifiers.length > 0));
                             }
                         }
                     }
